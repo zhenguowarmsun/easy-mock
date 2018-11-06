@@ -1,0 +1,26 @@
+.icon-class{
+  background:url('images/class.png') no-repeat center center;
+}
+.icon-method{
+  background:url('images/method.png') no-repeat center center;
+}
+
+.icon-debug{
+  background:url('images/debug.png') no-repeat center center;
+}
+
+.icon-required{
+  background:url('images/required.png') no-repeat center center;
+}
+
+.icon-unrequired{
+  background:url('images/unrequired.png') no-repeat center center;
+}
+
+.icon-collapse-all{
+  background:url('images/collapse_all.png') no-repeat center center;
+}
+
+.icon-expand-all{
+  background:url('images/expand_all.png') no-repeat center center;
+}

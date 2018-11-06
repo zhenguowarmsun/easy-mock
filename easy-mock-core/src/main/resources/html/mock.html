@@ -1,0 +1,236 @@
+<!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Frameset//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-frameset.dtd">
+<html xmlns="http://www.w3.org/1999/xhtml">
+<head>
+    <meta http-equiv="Content-Type" content="text/html;charset=utf-8"/>
+    <title>Mock管理平台</title>
+    <script src="./easyui/jquery.min.js" type="text/javascript"></script>
+    <script src="./easyui/jquery.easyui.min.js" type="text/javascript"></script>
+    <script src="./easyui/easyui-lang-zh_CN.js" type="text/javascript"></script>
+    <link rel="stylesheet" type="text/css" href="./easyui/easyui.css" />
+    <link rel="stylesheet" type="text/css" href="./easyui/icon.css" />
+    <link rel="shortcut icon" href="./easyui/images/favicon.png" />
+    <link rel="bookmark" href="./easyui/images/favicon.png" />
+</head>
+<body class="easyui-layout">
+<div region="north" split="false" collapsible="false" title="Mock" style="height:80px;text-align: center;vertical-align : text-bottom;font-size: 22px; padding-top: 12px;">
+    <span class="icon-debug">　　</span>Mock管理平台
+</div>
+<div data-options="region:'west',split:true,hideCollapsedContent:false" title="Mock列表" style="width:400px;" tools="#collapse_expand">
+    <ul id="mock_list"></ul>
+</div>
+<div id="collapse_expand" style="display: none">
+    <a href="javascript:collapseAll()" class="icon-collapse-all"></a>
+    <a href="javascript:expandAll()" class="icon-expand-all"></a>
+</div>
+<div region="center" split="true">
+    <div id="center-layout" fit="true">
+        <div data-options="region:'north',split:true,hideCollapsedContent:false" title="参数列表" split="false" style="height:300px;">
+            <input type="hidden" id="param_beanName" />
+            <input type="hidden" id="param_methodName"/>
+            <div id="div_parameters">
+                <table id="parameters_list" style="width:800px"></table>
+            </div>
+            <a href="javascript:void(0);" id="btnExecute" class="easyui-linkbutton" style="position: absolute; bottom: 10px;right: 20px;"><span style="font-size:16px;">&nbsp;提交&nbsp;</span></a>
+        </div>
+        <div region="center" title="返回结果" split="true" style="padding:5px;background:#eee;">
+            <table id="result_list"></table>
+        </div>
+    </div>
+</div>
+</body>
+
+
+<script type="text/javascript">
+    jQuery(document).ready(function(){
+        jQuery('body').layout();
+        jQuery('#west-layout').layout();
+        jQuery('#center-layout').layout();
+        // 加载Mock
+        loadMocks();
+        //
+        jQuery("#btnExecute").click(function(){
+            mock();
+        });
+    });
+
+    /**
+     * 加载类
+     */
+    function loadMocks() {
+        jQuery('#mock_list').tree({
+            url: "/easy/mock/json/classes",
+            animate : false,
+            lines : true,
+            onClick : function(node) {
+                selectMockNode(node);
+            },
+            onBeforeExpand : function(node) {
+                jQuery('#mock_list').tree("options").url = "/easy/mock/json/methods?beanName=" + node.id;
+            }
+        });
+    }
+
+    function selectMockNode(node) {
+        clearData();
+        if (jQuery('#mock_list').tree("isLeaf", node.target)) {
+            var attributes = JSON.parse(node.attributes);
+            loadParameters(attributes.beanName, node.id);
+        } else {
+            if (node.state == 'closed') {
+                jQuery('#mock_list').tree('expand', node.target);
+            } else {
+                jQuery('#mock_list').tree('collapse', node.target);
+            }
+        }
+    }
+
+    function expandAll() {
+        clearData();
+        collapseOrExpand('expandAll');
+    }
+
+    function collapseAll() {
+        clearData();
+        collapseOrExpand('collapseAll');
+    }
+
+    function collapseOrExpand(foldType) {
+        var arrayNodes = jQuery('#mock_list').tree('getRoots');
+        if (arrayNodes) {
+            var _foldType = (foldType === 'expandAll' ? 'expandAll' : 'collapseAll');
+            for (var n = 0; n < arrayNodes.length; n++) {
+                jQuery("#mock_list").tree(_foldType, arrayNodes[n].target);
+            }
+        }
+    }
+
+    function clearData() {
+        jQuery("#div_parameters").html('<table id="parameters_list" style="width:800px"></table>');
+        jQuery("#param_beanName").val("");
+        jQuery("#param_methodName").val("");
+        // 显示区清空
+        jQuery('#center-layout').layout("panel", "center").panel("body").html('<table id="result_list"></table>');
+    }
+    /**
+     * 加载类方法参数
+     */
+    function loadParameters(beanName, methodName) {
+        var mycolumns = [[
+            {field:'name', title:'参数名称', width :480, sortable: false, resizable:true},
+            {field:'parameterType', title:'参数类型', width :240, sortable: false, resizable:true},
+            {field:'value', title:'参数值', width :240, sortable: false, resizable:true}
+        ]];
+
+        jQuery('#param_beanName').val(beanName);
+        jQuery('#param_methodName').val(methodName);
+        jQuery('#parameters_list').propertygrid({
+            url: "/easy/mock/json/parameters?beanName=" + beanName + "&methodName=" + methodName,
+            showGroup: false,
+            scrollbarSize: 0,
+            fitColumns:true,
+            columns : mycolumns,
+            showHeader : false,
+            loadFilter: function(data) {
+                if (data && Array.isArray(data)) {
+                    for (var n = 0; n < data.length; n++) {
+                        var json = data[n];
+                        if (json.required) {
+                            json.name = '<span class="tree-icon tree-file icon-required"></span><span title="' + json.name + '">' + json.name + '</span>';
+                        } else {
+                            json.name = '<span class="tree-icon tree-file icon-unrequired"></span><span title="' + json.name + '">' + json.name + '</span>';
+                        }
+                    }
+                }
+
+                return data;
+            }
+        });
+    }
+
+    /**
+     * 执行Mock测试
+     */
+    function mock() {
+        var dataGroups = jQuery('#parameters_list').propertygrid("getRows");
+        if (dataGroups) {
+            var beanName, methodName;
+            var mockParam = {};
+
+            for (var n = 0; n < dataGroups.length; n++) {
+                var dataGroup = dataGroups[n];
+                if (dataGroup.required && (!dataGroup.value || dataGroup.value.length == 0)) {
+                    var doc = (!!dataGroup.doc && dataGroup.doc.length > 0) ? dataGroup.doc : dataGroup.fieldName;
+                    jQuery.messager.alert('操作提示','必填项[' + doc + ']为空,请填写后提交');
+                    return false;
+                }
+
+                mockParam[dataGroup.fieldName] = dataGroup.value;
+            }
+
+            beanName = jQuery('#param_beanName').val();
+            methodName = jQuery('#param_methodName').val();
+            jQuery.ajax({
+                url: '/easy/mock/json/mock',
+                data: {"beanName": beanName, "methodName": methodName, "mockParam" : JSON.stringify(mockParam)},
+                type: 'post',
+                cache: false,
+                async: false,
+                success: function (result) {
+                    if (result) {
+                        var _result = eval('(' + result + ')');
+                        var columns = _result.columns;
+                        var dataResult = eval('(' + _result.data + ')');
+
+                        jQuery('#result_list').datagrid({
+                            data : dataResult,
+                            singleSelect: true,
+                            pagination : false,// 是否显示分页
+                            noheader : false,
+                            frozen : true,
+                            fitColumns : true,
+                            rownumbers : true,
+                            striped : true,
+                            loadFilter: function(data) {
+                               if (data && Array.isArray(data)) {
+                                    for (var n = 0; n < data.length; n++) {
+                                        var json = data[n];
+                                        jQuery.each(json, function(name, value) {
+                                            value = JSON.stringify(value) + "";
+                                            if (value.charAt(0) == '"') {
+                                                value = value.substring(1, value.length);
+                                            }
+
+                                            if (value.charAt(value.length - 1) == '"') {
+                                                value = value.substring(0, value.length - 1);
+                                            }
+
+                                            value = replaceAll(value, "<", "&lt;");
+                                            value = replaceAll(value, ">", "&gt;");
+                                            value = replaceAll(value, "\"", "&quot;");
+                                            json[name] = '<span title="' + value + '">' + value +'</span>';
+                                        });
+                                    }
+                                }
+
+                                return data;
+                            },
+                            columns: [columns]
+                        });
+                    }
+                },
+                error: function (request, errMsg) {
+                    console.error(errMsg);
+                }
+            });
+        }
+    }
+
+    function replaceAll(source, sptr, sptr1){
+        while (source.indexOf(sptr) >= 0){
+            source = source.replace(sptr, sptr1);
+        }
+
+        return source;
+    }
+</script>
+</html>
